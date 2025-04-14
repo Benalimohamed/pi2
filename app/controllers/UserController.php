@@ -1,0 +1,225 @@
+<?php
+class UserController
+{
+    private $userModel;
+    private $db;
+
+    public function __construct($db)
+    {
+        if (!$db instanceof PDO) {
+            throw new Exception("Invalid database connection");
+        }
+        $this->db = $db;
+        $this->userModel = new User($db);
+    }
+
+    public function register()
+    {
+        // If user is already logged in, redirect to home
+        if (isLoggedIn()) {
+            redirect('');
+        }
+
+        $currentPage = 'register';
+        $title = "Inscription - Gestion d'Événements";
+        
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $firstname = $_POST['firstname'] ?? '';
+            $lastname = $_POST['lastname'] ?? '';
+            $email = $_POST['email'] ?? '';
+            $password = $_POST['password'] ?? '';
+            $confirm_password = $_POST['confirm_password'] ?? '';
+
+            if ($password !== $confirm_password) {
+                $_SESSION['error'] = "Les mots de passe ne correspondent pas";
+            } else {
+                $result = $this->userModel->register($firstname, $lastname, $email, $password);
+                if ($result) {
+                    $_SESSION['success'] = "Inscription réussie ! Vous pouvez maintenant vous connecter.";
+                    redirect('login');
+                } else {
+                    $_SESSION['error'] = "L'email est déjà utilisé";
+                }
+            }
+        }
+
+        ob_start();
+        require_once __DIR__ . '/../views/user/register.php';
+        $content = ob_get_clean();
+        require_once __DIR__ . '/../views/layouts/main.php';
+    }
+
+    public function login()
+    {
+        // If user is already logged in, redirect to home
+        if (isLoggedIn()) {
+            redirect('');
+        }
+
+        $currentPage = 'login';
+        $title = "Connexion - Gestion d'Événements";
+        
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $email = $_POST['email'] ?? '';
+            $password = $_POST['password'] ?? '';
+
+            $user = $this->userModel->login($email, $password);
+            if ($user) {
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['user_email'] = $user['email'];
+                $_SESSION['user_role'] = $user['role'];
+                $_SESSION['user_firstname'] = $user['firstname'];
+                $_SESSION['user_lastname'] = $user['lastname'];
+                $_SESSION['success'] = "Connexion réussie !";
+                
+                if ($user['role'] === 'admin') {
+                    redirect('admin/dashboard');
+                } else {
+                    redirect('');
+                }
+            } else {
+                $_SESSION['error'] = "Email ou mot de passe incorrect";
+            }
+        }
+
+        ob_start();
+        require_once __DIR__ . '/../views/user/login.php';
+        $content = ob_get_clean();
+        require_once __DIR__ . '/../views/layouts/main.php';
+    }
+
+    public function logout()
+    {
+        session_destroy();
+        redirect('login');
+    }
+
+    public function profile()
+    {
+        requireAuth();
+        $currentPage = 'profile';
+        $title = "Mon Profil - Gestion d'Événements";
+        
+        $userId = getCurrentUserId();
+        $user = $this->userModel->getUserById($userId);
+
+        ob_start();
+        require_once __DIR__ . '/../views/user/profile.php';
+        $content = ob_get_clean();
+        require_once __DIR__ . '/../views/layouts/main.php';
+    }
+
+    public function updateProfile()
+    {
+        requireAuth();
+        $currentPage = 'update-profile';
+        $title = "Modifier mon profil - Gestion d'Événements";
+        
+        $userId = getCurrentUserId();
+        $user = $this->userModel->getUserById($userId);
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $firstname = $_POST['firstname'] ?? '';
+            $lastname = $_POST['lastname'] ?? '';
+            $email = $_POST['email'] ?? '';
+
+            $result = $this->userModel->updateProfile($userId, $firstname, $lastname, $email);
+            if ($result) {
+                $_SESSION['user_firstname'] = $firstname;
+                $_SESSION['user_lastname'] = $lastname;
+                $_SESSION['user_email'] = $email;
+                $_SESSION['success'] = "Profil mis à jour avec succès";
+                redirect('profile');
+            } else {
+                $_SESSION['error'] = "Erreur lors de la mise à jour du profil";
+            }
+        }
+
+        ob_start();
+        require_once __DIR__ . '/../views/user/update_profile.php';
+        $content = ob_get_clean();
+        require_once __DIR__ . '/../views/layouts/main.php';
+    }
+
+    public function changePassword()
+    {
+        requireAuth();
+        $currentPage = 'change-password';
+        $title = "Changer mon mot de passe - Gestion d'Événements";
+        
+        $userId = getCurrentUserId();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $current_password = $_POST['current_password'] ?? '';
+            $new_password = $_POST['new_password'] ?? '';
+            $confirm_password = $_POST['confirm_password'] ?? '';
+
+            // Verify current password
+            $user = $this->userModel->getUserById($userId);
+            if (!password_verify($current_password, $user['password_hash'])) {
+                $_SESSION['error'] = "Le mot de passe actuel est incorrect";
+            } elseif ($new_password !== $confirm_password) {
+                $_SESSION['error'] = "Les nouveaux mots de passe ne correspondent pas";
+            } elseif (strlen($new_password) < 8) {
+                $_SESSION['error'] = "Le nouveau mot de passe doit contenir au moins 8 caractères";
+            } else {
+                $result = $this->userModel->changePassword($userId, $new_password);
+                if ($result) {
+                    $_SESSION['success'] = "Mot de passe modifié avec succès";
+                    redirect('profile');
+                } else {
+                    $_SESSION['error'] = "Erreur lors de la modification du mot de passe";
+                }
+            }
+        }
+
+        ob_start();
+        require_once __DIR__ . '/../views/user/change_password.php';
+        $content = ob_get_clean();
+        require_once __DIR__ . '/../views/layouts/main.php';
+    }
+
+    public function deactivateAccount()
+    {
+        if (!isLoggedIn()) {
+            redirect('login');
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if ($this->userModel->deactivateAccount($_SESSION['user_id'])) {
+                session_destroy();
+                redirect('');
+            }
+        }
+
+        // Charger la vue
+        $title = "Désactiver mon compte - " . APP_NAME;
+        ob_start();
+        require_once __DIR__ . '/../views/user/deactivate_account.php';
+        $content = ob_get_clean();
+
+        require_once __DIR__ . '/../views/layouts/main.php';
+    }
+
+    public function deleteAccount()
+    {
+        if (!isLoggedIn()) {
+            redirect('login');
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if ($this->userModel->deleteAccount($_SESSION['user_id'])) {
+                session_destroy();
+                redirect('');
+            }
+        }
+
+        // Charger la vue
+        $title = "Supprimer mon compte - " . APP_NAME;
+        ob_start();
+        require_once __DIR__ . '/../views/user/delete_account.php';
+        $content = ob_get_clean();
+
+        require_once __DIR__ . '/../views/layouts/main.php';
+    }
+}
