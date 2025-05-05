@@ -13,6 +13,9 @@ $routes = [
     '/profile/change-password' => 'UserController@changePassword',
     '/profile/deactivate' => 'UserController@deactivateAccount',
     '/profile/delete' => 'UserController@deleteAccount',
+    '/verify_code' => 'UserController@verify_code',
+    '/request-reset-password' => 'UserController@requestResetPassword',
+    '/reset-password' => 'UserController@resetPassword',
 
     // Routes événements
     '/events' => 'EventController@index',
@@ -39,7 +42,8 @@ $routes = [
     '/admin/events/edit/{id}' => 'AdminController@updateEvent',
     '/admin/events/delete/{id}' => 'AdminController@deleteEvent',
     '/admin/reservations' => 'AdminController@reservations',
-    '/admin/reviews' => 'AdminController@reviews'
+    '/admin/reviews' => 'AdminController@reviews',
+    '/botman' => 'BotManController@handle'
 ];
 
 // Affichage du contenu du fichier pour débogage

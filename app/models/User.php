@@ -27,21 +27,23 @@ class User
 
         // Hasher le mot de passe
         $password_hash = password_hash($password, PASSWORD_DEFAULT);
+        // Générer un code de vérification
+        $verification_code = rand(100000, 999999);
 
         // Insérer le nouvel utilisateur
         $stmt = $this->db->prepare("
-            INSERT INTO users (firstname, lastname, email, password_hash, role, status, created_at)
-            VALUES (?, ?, ?, ?, 'user', 'actif', NOW())
+            INSERT INTO users (firstname, lastname, email, password_hash, role, status, created_at, is_verified, verification_code)
+            VALUES (?, ?, ?, ?, 'user', 'actif', NOW(), 0, ?)
         ");
 
-        return $stmt->execute([$firstname, $lastname, $email, $password_hash]);
+        return $stmt->execute([$firstname, $lastname, $email, $password_hash, $verification_code]);
     }
 
     public function login($email, $password)
     {
         $stmt = $this->db->prepare("
             SELECT * FROM users 
-            WHERE email = ? AND status = 'actif'
+            WHERE email = ? AND status = 'actif' AND is_verified = 1
         ");
         $stmt->execute([$email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -193,6 +195,28 @@ class User
         return $stmt->execute([$role, $userId]);
     }
 
+    public function verifyUser($email) {
+        $stmt = $this->db->prepare("UPDATE users SET is_verified = 1, verification_code = NULL WHERE email = ?");
+        return $stmt->execute([$email]);
+    }
+
+    public function setVerificationCode($email, $code) {
+        $stmt = $this->db->prepare("UPDATE users SET verification_code = ? WHERE email = ?");
+        return $stmt->execute([$code, $email]);
+    }
+
+    public function checkVerificationCode($email, $code) {
+        $stmt = $this->db->prepare("SELECT id FROM users WHERE email = ? AND verification_code = ?");
+        $stmt->execute([$email, $code]);
+        return $stmt->rowCount() > 0;
+    }
+
+    public function getUserByEmail($email) {
+        $stmt = $this->db->prepare("SELECT * FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
     // Getters
     public function getId()
     {
@@ -213,5 +237,28 @@ class User
     public function getRole()
     {
         return $this->role;
+    }
+
+    // Password reset logic
+    public function setPasswordResetToken($email, $token) {
+        $stmt = $this->db->prepare("UPDATE users SET password_reset_token = ?, password_reset_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE email = ?");
+        return $stmt->execute([$token, $email]);
+    }
+
+    public function verifyPasswordResetToken($email, $token) {
+        $stmt = $this->db->prepare("SELECT id FROM users WHERE email = ? AND password_reset_token = ? AND password_reset_expires > NOW()");
+        $stmt->execute([$email, $token]);
+        return $stmt->rowCount() > 0;
+    }
+
+    public function changePasswordByEmail($email, $new_password) {
+        $password_hash = password_hash($new_password, PASSWORD_DEFAULT);
+        $stmt = $this->db->prepare("UPDATE users SET password_hash = ?, is_verified = 1 WHERE email = ?");
+        return $stmt->execute([$password_hash, $email]);
+    }
+
+    public function clearPasswordResetToken($email) {
+        $stmt = $this->db->prepare("UPDATE users SET password_reset_token = NULL, password_reset_expires = NULL WHERE email = ?");
+        return $stmt->execute([$email]);
     }
 }

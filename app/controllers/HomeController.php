@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../Database.php';
+require_once __DIR__ . '/../models/Event.php';
+require_once __DIR__ . '/../models/User.php';
 
 class HomeController
 {

@@ -51,7 +51,7 @@ class AdminController
                 $activities[] = [
                     'type' => 'reservation',
                     'title' => "New reservation for {$reservation['event_title']}",
-                    'description' => "{$reservation['firstname']} {$reservation['lastname']} reserved {$reservation['quantity']} tickets",
+                    'description' => "{$reservation['firstname']} {$reservation['lastname']} reserved " . (isset($reservation['quantity']) ? $reservation['quantity'] : 'some') . " tickets",
                     'date' => $reservation['created_at']
                 ];
             }
